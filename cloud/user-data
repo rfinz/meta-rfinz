@@ -1,0 +1,50 @@
+#cloud-config
+ debug: True
+ users:
+   - name: rfinz
+     sudo: ['ALL=(ALL) NOPASSWD:ALL']
+     groups: [wheel]
+ packages:
+   - wget
+   - postgresql
+   - postgresql-server
+   - git
+   - emacs
+ runcmd:
+# finish setting up personal user
+   - su -c "rsync --archive --chown=rfinz:rfinz /root/.ssh /home/rfinz"
+   - su rfinz -c "mkdir keys"
+   - [su, rfinz, -c, "git clone https://github.com/rfinz/rfinz.git /home/rfinz/rfinz"]
+   - [su, rfinz, -c, "git clone https://github.com/rfinz/dotfiles.git /home/rfinz/dotfiles"]
+   - [su, rfinz, -c, "cp -r /home/rfinz/rfinz/cloud/containers /home/rfinz/.config/"]
+   - [su, rfinz, -c, "mkdir -p /home/rfinz/.emacs.d/lisp && cp /home/rfinz/dotfiles/elisp/* /home/rfinz/.emacs.d/lisp"]
+   - [su, rfinz, -c, "ln -s .emacs /home/rfinz/dotfiles/.emacs"]
+   - sysctl user.max_user_namespaces=15000
+# enable services
+   - systemctl --now enable cockpit.socket
+   - postgresql-setup --initdb --unit postgresql
+   - systemctl --now enable postgresql.service
+# install Podman and dependencies
+   - dnf -y module disable container-tools
+   - dnf -y install "dnf-command(copr)"
+   - dnf -y copr enable rhcontainerbot/container-selinux
+   - [wget, "https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/CentOS_8/devel:kubic:libcontainers:stable.repo", -P, /etc/yum.repos.d/]
+   - dnf -y install podman fuse-overlayfs
+   - dnf config-manager --set-enabled PowerTools
+   - dnf install -y make automake autoconf gettext libtool gcc libcap-devel systemd-devel yajl-devel libseccomp-devel python36 libtool
+   - [su, rfinz, -c, "git clone https://github.com/containers/crun.git /home/rfinz/crun"]
+   - su rfinz -c "cd /home/rfinz/crun && ./autogen.sh && ./configure"
+   - su rfinz -c "cd /home/rfinz/crun && make"
+   - su -c "cd /home/rfinz/crun && make install"
+# set up database for concourse
+   - su postgres -c "createuser rfinz"
+   - su postgres -c "createdb --owner=rfinz atc"
+# run concourse and grab client from the web interface
+   - su rfinz -c "podman pod create --name ci -p 8080:8080"
+   - su rfinz -c "podman run -d -v /home/rfinz/keys:/etc/keys concourse/concourse generate-key -t rsa -f /etc/keys/session_signing_key"
+   - su rfinz -c "podman run -d -v /home/rfinz/keys:/etc/keys concourse/concourse generate-key -t ssh -f /etc/keys/tsa_host_key"
+   - su rfinz -c "podman run -d -v /home/rfinz/keys:/etc/keys concourse/concourse generate-key -t ssh -f /etc/keys/worker_key"
+   - su rfinz -c "cp /home/rfinz/keys/worker_key.pub /home/rfinz/keys/authorized_worker_keys"
+   - su rfinz -c "podman run -d --pod ci --name concourse-web -v /var/run/postgresql:/var/run/postgresql -v /home/rfinz/keys:/etc/keys -e CONCOURSE_SESSION_SIGNING_KEY=/etc/keys/session_signing_key -e CONCOURSE_TSA_HOST_KEY=/etc/keys/tsa_host_key -e CONCOURSE_TSA_AUTHORIZED_KEYS=/etc/keys/authorized_worker_keys -e CONCOURSE_ADD_LOCAL_USER='test:test' -e CONCOURSE_MAIN_TEAM_LOCAL_USER='test' -e CONCOURSE_POSTGRES_SOCKET=/var/run/postgresql -e CONCOURSE_POSTGRES_USER=rfinz concourse/concourse web"
+   - su rfinz -c "podman run -d --pod ci --name concourse-worker -v /home/rfinz/keys:/etc/keys -e CONCOURSE_TSA_HOST=ci:2222 -e CONCOURSE_TSA_PUBLIC_KEY=/etc/keys/tsa_host_key.pub -e CONCOURSE_TSA_WORKER_PRIVATE_KEY=/etc/keys/worker_key -e CONCOURSE_POSTGRES_USER=rfinz concourse/concourse worker"
+   
