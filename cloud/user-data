@@ -14,9 +14,9 @@
 # finish setting up personal user
    - su -c "rsync --archive --chown=rfinz:rfinz /root/.ssh /home/rfinz"
    - su rfinz -c "mkdir keys"
-   - [su, rfinz, -c, "git clone https://github.com/rfinz/rfinz.git /home/rfinz/rfinz"]
+   - [su, rfinz, -c, "git clone https://github.com/rfinz/meta-rfinz.git /home/rfinz/meta"]
    - [su, rfinz, -c, "git clone https://github.com/rfinz/dotfiles.git /home/rfinz/dotfiles"]
-   - [su, rfinz, -c, "cp -r /home/rfinz/rfinz/cloud/containers /home/rfinz/.config/"]
+   - [su, rfinz, -c, "cp -r /home/rfinz/meta/cloud/containers /home/rfinz/.config/"]
    - [su, rfinz, -c, "mkdir -p /home/rfinz/.emacs.d/lisp && cp /home/rfinz/dotfiles/elisp/* /home/rfinz/.emacs.d/lisp"]
    - [su, rfinz, -c, "ln -s .emacs /home/rfinz/dotfiles/.emacs"]
    - sysctl user.max_user_namespaces=15000
