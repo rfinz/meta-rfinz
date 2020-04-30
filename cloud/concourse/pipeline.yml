@@ -6,18 +6,19 @@ resource_types:
       tag: latest
       
 resources:
-- name: rfinz-repository
-  type: git
-  icon: github-circle
-  source:
-    uri: https://github.com/rfinz/rfinz.git
-- name: server-deploy
-  type: rsync-resource
-  source:
-    server: rfinz.me
-    base_dir: www
-    disable_version_path: true
-    private_key: {{production-server-key}}
+  - name: rfinz-repository
+    type: git
+    icon: github-circle
+    source:
+      uri: https://github.com/rfinz/rfinz.git
+  - name: server-deploy
+    type: rsync-resource
+    source:
+      server: {{server-address}}
+      user: centos
+      base_dir: /home/centos/www
+      disable_version_path: true
+      private_key: {{server-key}}
     
 jobs:
 - name: build-website
@@ -26,20 +27,60 @@ jobs:
     - get: rfinz-repository
       trigger: true
     - task: build
-      platform: linux
-      inputs:
-        - rfinz-repository
       config:
-        image-resource:
+        platform: linux
+        image_resource:
           type: registry-image
-          source: { repository: "jekyll/builder:4.0" }
-      run:
-        path: /bin/sh
-        args:
-          - -c
-          - |
-            apk --update add file imagemagick
-            bundle exec jekyll build
-    - put: 
-        params: {"sync_dir": "out", "rsync_opts": "--usermap=username:rfinz"}
+          source: { repository: "ruby", tag: "2.7.1-alpine" }
+        inputs:
+          - name: rfinz-repository
+        outputs:
+          - name: out
+        run:
+          path: /bin/sh
+          args:
+            - -c
+            - |
+              cd rfinz-repository/jekyll/
+              apk --no-cache add \
+              libressl-dev \
+              zlib-dev \
+              build-base \
+              libxml2-dev \
+              libxslt-dev \
+              readline-dev \
+              libffi-dev \
+              yaml-dev \
+              zlib-dev \
+              libffi-dev \
+              cmake
+
+              apk --no-cache add \
+              linux-headers \
+              openjdk8-jre \
+              less \
+              zlib \
+              libxml2 \
+              readline \
+              libxslt \
+              libffi \
+              git \
+              nodejs \
+              tzdata \
+              shadow \
+              bash \
+              su-exec \
+              nodejs-npm \
+              libressl \
+              yarn
+              
+              apk --update add file imagemagick
+              gem install bundler
+              bundle install
+              npm install
+              jekyll build
+              cp -r _site/* ../../out
+            
+    - put: server-deploy
+      params: {sync_dir: "out"}
             
