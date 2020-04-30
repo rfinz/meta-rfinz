@@ -1,9 +1,5 @@
 #cloud-config
  debug: True
- users:
-   - name: rfinz
-     sudo: ['ALL=(ALL) NOPASSWD:ALL']
-     groups: [wheel]
  packages:
    - wget
    - postgresql
@@ -12,13 +8,12 @@
    - emacs
  runcmd:
 # finish setting up personal user
-   - su -c "rsync --archive --chown=rfinz:rfinz /root/.ssh /home/rfinz"
-   - su rfinz -c "mkdir keys"
-   - [su, rfinz, -c, "git clone https://github.com/rfinz/meta-rfinz.git /home/rfinz/meta"]
-   - [su, rfinz, -c, "git clone https://github.com/rfinz/dotfiles.git /home/rfinz/dotfiles"]
-   - [su, rfinz, -c, "cp -r /home/rfinz/meta/cloud/containers /home/rfinz/.config/"]
-   - [su, rfinz, -c, "mkdir -p /home/rfinz/.emacs.d/lisp && cp /home/rfinz/dotfiles/elisp/* /home/rfinz/.emacs.d/lisp"]
-   - [su, rfinz, -c, "ln -s .emacs /home/rfinz/dotfiles/.emacs"]
+   - [su, centos, -c, "mkdir /home/centos/keys"]
+   - [su, centos, -c, "git clone https://github.com/rfinz/meta-rfinz.git /home/centos/meta"]
+   - [su, centos, -c, "git clone https://github.com/rfinz/dotfiles.git /home/centos/dotfiles"]
+   - [su, centos, -c, "cp -r /home/centos/meta/cloud/containers /home/centos/.config/"]
+   - [su, centos, -c, "mkdir -p /home/centos/.emacs.d/lisp && cp /home/centos/dotfiles/elisp/* /home/centos/.emacs.d/lisp"]
+   - [su, centos, -c, "ln -s /home/centos/dotfiles/.emacs /home/centos/.emacs"]
    - sysctl user.max_user_namespaces=15000
 # enable services
    - systemctl --now enable cockpit.socket
@@ -32,19 +27,26 @@
    - dnf -y install podman fuse-overlayfs
    - dnf config-manager --set-enabled PowerTools
    - dnf install -y make automake autoconf gettext libtool gcc libcap-devel systemd-devel yajl-devel libseccomp-devel python36 libtool
-   - [su, rfinz, -c, "git clone https://github.com/containers/crun.git /home/rfinz/crun"]
-   - su rfinz -c "cd /home/rfinz/crun && ./autogen.sh && ./configure"
-   - su rfinz -c "cd /home/rfinz/crun && make"
-   - su -c "cd /home/rfinz/crun && make install"
+   - [su, centos, -c, "git clone https://github.com/containers/crun.git /home/centos/crun"]
+   - su centos -c "cd /home/centos/crun && ./autogen.sh && ./configure"
+   - su centos -c "cd /home/centos/crun && make"
+   - su -c "cd /home/centos/crun && make install"
 # set up database for concourse
-   - su postgres -c "createuser rfinz"
-   - su postgres -c "createdb --owner=rfinz atc"
+   - su postgres -c "createuser centos"
+   - su postgres -c "createdb --owner=centos atc"
 # run concourse and grab client from the web interface
-   - su rfinz -c "podman pod create --name ci -p 8080:8080"
-   - su rfinz -c "podman run -d -v /home/rfinz/keys:/etc/keys concourse/concourse generate-key -t rsa -f /etc/keys/session_signing_key"
-   - su rfinz -c "podman run -d -v /home/rfinz/keys:/etc/keys concourse/concourse generate-key -t ssh -f /etc/keys/tsa_host_key"
-   - su rfinz -c "podman run -d -v /home/rfinz/keys:/etc/keys concourse/concourse generate-key -t ssh -f /etc/keys/worker_key"
-   - su rfinz -c "cp /home/rfinz/keys/worker_key.pub /home/rfinz/keys/authorized_worker_keys"
-   - su rfinz -c "podman run -d --pod ci --name concourse-web -v /var/run/postgresql:/var/run/postgresql -v /home/rfinz/keys:/etc/keys -e CONCOURSE_SESSION_SIGNING_KEY=/etc/keys/session_signing_key -e CONCOURSE_TSA_HOST_KEY=/etc/keys/tsa_host_key -e CONCOURSE_TSA_AUTHORIZED_KEYS=/etc/keys/authorized_worker_keys -e CONCOURSE_ADD_LOCAL_USER='test:test' -e CONCOURSE_MAIN_TEAM_LOCAL_USER='test' -e CONCOURSE_POSTGRES_SOCKET=/var/run/postgresql -e CONCOURSE_POSTGRES_USER=rfinz concourse/concourse web"
-   - su rfinz -c "podman run -d --pod ci --name concourse-worker -v /home/rfinz/keys:/etc/keys -e CONCOURSE_TSA_HOST=ci:2222 -e CONCOURSE_TSA_PUBLIC_KEY=/etc/keys/tsa_host_key.pub -e CONCOURSE_TSA_WORKER_PRIVATE_KEY=/etc/keys/worker_key -e CONCOURSE_POSTGRES_USER=rfinz concourse/concourse worker"
+   - mkdir -p /opt/concourse/worker
+   - [wget, "https://github.com/concourse/concourse/releases/download/v6.0.0/concourse-6.0.0-linux-amd64.tgz", -P, /usr/local/bin/]
+   - tar -xzvf /usr/local/bin/concourse-6.0.0-linux-amd64.tgz
+   - chmod +x /usr/local/bin/concourse/bin/concourse
+   - ln -s /usr/local/bin/concourse/bin/concourse /usr/local/bin/c
+   - su centos -c "podman run -d -v /home/centos/keys:/etc/keys concourse/concourse generate-key -t rsa -f /etc/keys/session_signing_key"
+   - su centos -c "podman run -d -v /home/centos/keys:/etc/keys concourse/concourse generate-key -t ssh -f /etc/keys/tsa_host_key"
+   - su centos -c "podman run -d -v /home/centos/keys:/etc/keys concourse/concourse generate-key -t ssh -f /etc/keys/worker_key"
+   - su centos -c "cp /home/centos/keys/worker_key.pub /home/centos/keys/authorized_worker_keys"
+   - su centos -c "podman pod create --name ci -p 8080:8080 -p 2222:2222"
+   - su centos -c "podman run -d --pod ci --name concourse-web -v /var/run/postgresql:/var/run/postgresql -v /home/centos/keys:/etc/keys -e CONCOURSE_SESSION_SIGNING_KEY=/etc/keys/session_signing_key -e CONCOURSE_TSA_HOST_KEY=/etc/keys/tsa_host_key -e CONCOURSE_TSA_AUTHORIZED_KEYS=/etc/keys/authorized_worker_keys -e CONCOURSE_ADD_LOCAL_USER='test:test' -e CONCOURSE_MAIN_TEAM_LOCAL_USER='test' -e CONCOURSE_POSTGRES_SOCKET=/var/run/postgresql -e CONCOURSE_POSTGRES_USER=centos -e CONCOURSE_POSTGRES_PASSWORD=secret -e CONCOURSE_EXTERNAL_URL='rfinz.me' concourse/concourse web"
+   #
+   # Worker should be started later on bare metal with:
+   # CONCOURSE_TSA_HOST=127.0.0.1:2222 CONCOURSE_TSA_PUBLIC_KEY=/home/centos/keys/tsa_host_key.pub CONCOURSE_TSA_WORKER_PRIVATE_KEY=/home/centos/keys/worker_key CONCOURSE_WORK_DIR=/opt/concourse/worker sudo -E /usr/local/bin/c worker
    
