@@ -33,4 +33,4 @@ RUN apk --no-cache add \
 
 RUN apk add file imagemagick
 RUN gem install bundler jekyll
-RUN gem install sassc
+RUN gem install sassc:2.2.1
