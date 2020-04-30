@@ -15,8 +15,8 @@ resources:
     type: rsync-resource
     source:
       server: {{server-address}}
-      user: centos
-      base_dir: /home/centos/www
+      user: freebsd
+      base_dir: /home/freebsd/sync
       disable_version_path: true
       private_key: {{server-key}}
     
@@ -31,7 +31,7 @@ jobs:
         platform: linux
         image_resource:
           type: registry-image
-          source: { repository: "ruby", tag: "2.7.1-alpine" }
+          source: { repository: "rfinz/builder"}
         inputs:
           - name: rfinz-repository
         outputs:
@@ -42,43 +42,9 @@ jobs:
             - -c
             - |
               cd rfinz-repository/jekyll/
-              apk --no-cache add \
-              libressl-dev \
-              zlib-dev \
-              build-base \
-              libxml2-dev \
-              libxslt-dev \
-              readline-dev \
-              libffi-dev \
-              yaml-dev \
-              zlib-dev \
-              libffi-dev \
-              cmake
-
-              apk --no-cache add \
-              linux-headers \
-              openjdk8-jre \
-              less \
-              zlib \
-              libxml2 \
-              readline \
-              libxslt \
-              libffi \
-              git \
-              nodejs \
-              tzdata \
-              shadow \
-              bash \
-              su-exec \
-              nodejs-npm \
-              libressl \
-              yarn
-              
-              apk --update add file imagemagick
-              gem install bundler
               bundle install
               npm install
-              jekyll build
+              bundle exec jekyll build
               cp -r _site/* ../../out
             
     - put: server-deploy
