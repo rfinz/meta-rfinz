@@ -45,6 +45,7 @@ jobs:
               bundle install
               npm install
               bundle exec jekyll build
+              mv assets/thumbnails _site/assets/thumbnails
               cp -r _site/* ../../out
             
     - put: server-deploy
