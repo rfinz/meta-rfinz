@@ -1,0 +1,32 @@
+#cloud-config
+ debug: True
+ packages:
+   - wget
+   - git
+   - emacs
+ runcmd:
+# finish setting up personal user
+   - [su, centos, -c, "git clone https://github.com/rfinz/meta-rfinz.git /home/centos/meta"]
+   - [su, centos, -c, "git clone https://github.com/rfinz/dotfiles.git /home/centos/dotfiles"]
+   - [su, centos, -c, "cp -r /home/centos/meta/cloud/containers /home/centos/.config/"]
+   - [su, centos, -c, "mkdir -p /home/centos/.emacs.d/lisp && cp /home/centos/dotfiles/elisp/* /home/centos/.emacs.d/lisp"]
+   - [su, centos, -c, "ln -s /home/centos/dotfiles/.emacs /home/centos/.emacs"]
+   - sysctl user.max_user_namespaces=15000
+   - sysctl net.ipv4.ip_unprivileged_port_start=80
+# enable services
+   - systemctl --now enable cockpit.socket
+# install Podman and dependencies
+   - dnf -y module disable container-tools
+   - dnf -y install "dnf-command(copr)"
+   - dnf -y copr enable rhcontainerbot/container-selinux
+   - [wget, "https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/CentOS_8/devel:kubic:libcontainers:stable.repo", -P, /etc/yum.repos.d/]
+   - dnf -y install podman fuse-overlayfs
+   - dnf config-manager --set-enabled PowerTools
+   - dnf install -y make automake autoconf gettext libtool gcc libcap-devel systemd-devel yajl-devel libseccomp-devel python36 libtool
+   - [su, centos, -c, "git clone https://github.com/containers/crun.git /home/centos/crun"]
+   - su centos -c "cd /home/centos/crun && ./autogen.sh && ./configure"
+   - su centos -c "cd /home/centos/crun && make"
+   - su -c "cd /home/centos/crun && make install"
+# run concourse and grab client from the web interface
+   - su centos -c "podman pod create --name web -p 80:80 -p 443:443"
+   - su centos -c "podman run -d --pod web --name lighttpd -v /home/centos/www:/var/www/localhost/htdocs -v /home/centos/meta/lighttpd:/etc/lighttpd rfinz/lighttpd"
