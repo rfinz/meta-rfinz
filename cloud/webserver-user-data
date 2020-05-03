@@ -27,6 +27,9 @@
    - su centos -c "cd /home/centos/crun && ./autogen.sh && ./configure"
    - su centos -c "cd /home/centos/crun && make"
    - su -c "cd /home/centos/crun && make install"
-# run concourse and grab client from the web interface
+# get certbot and perform initial website setup
+   - wget https://dl.eff.org/certbot-auto
+   - mv certbot-auto /usr/local/bin/certbot-auto
+   - chmod 0755 /usr/local/bin/certbot-auto
    - su centos -c "podman pod create --name web -p 80:80 -p 443:443"
    - su centos -c "podman run -d --pod web --name lighttpd -v /home/centos/www:/var/www/localhost/htdocs -v /home/centos/meta/lighttpd:/etc/lighttpd rfinz/lighttpd"
